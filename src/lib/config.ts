@@ -30,6 +30,10 @@ export const RAZORPAY_WEBHOOK_SECRET = val(process.env.RAZORPAY_WEBHOOK_SECRET);
 /** Exposed to the browser so checkout can decide between real and simulated payment. */
 export const PUBLIC_RAZORPAY_KEY_ID = val(process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID);
 
+/** Shown as a "Chat on WhatsApp" link on each catalog product. Digits only, country code first. */
+export const SUPPORT_WHATSAPP_NUMBER =
+  val(process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP_NUMBER) ?? "918237603202";
+
 export const CRISP_WEBSITE_ID = val(process.env.NEXT_PUBLIC_CRISP_WEBSITE_ID);
 export const TAWK_PROPERTY_ID = val(process.env.NEXT_PUBLIC_TAWK_PROPERTY_ID);
 export const TAWK_WIDGET_ID = val(process.env.NEXT_PUBLIC_TAWK_WIDGET_ID) ?? "1i00000000";

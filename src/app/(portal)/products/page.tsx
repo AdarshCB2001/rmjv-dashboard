@@ -3,7 +3,8 @@ import { requireSession } from "@/lib/auth";
 import { listProducts } from "@/lib/data/products";
 import { lastSpecMap } from "@/lib/data/orders";
 import { formatINR } from "@/lib/money";
-import { Badge, Card, EmptyState, PageHeader, ProductThumb } from "@/components/ui";
+import { SUPPORT_WHATSAPP_NUMBER } from "@/lib/config";
+import { Badge, btn, Card, EmptyState, PageHeader, ProductThumb } from "@/components/ui";
 import { AddToCart } from "@/components/cart/AddToCart";
 
 export const metadata: Metadata = { title: "Catalog" };
@@ -72,6 +73,17 @@ export default async function ProductsPage() {
                     unit={product.unit}
                     lastSpec={lastSpec}
                   />
+
+                  <a
+                    href={`https://wa.me/${SUPPORT_WHATSAPP_NUMBER}?text=${encodeURIComponent(
+                      `Hi, I have a question about "${product.name}" on the RMJV portal.`,
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={btn("secondary", "w-full")}
+                  >
+                    Chat on WhatsApp
+                  </a>
                 </div>
               </Card>
             );
