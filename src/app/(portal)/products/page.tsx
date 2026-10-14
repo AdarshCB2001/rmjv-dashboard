@@ -4,8 +4,11 @@ import { listProducts } from "@/lib/data/products";
 import { lastSpecMap } from "@/lib/data/orders";
 import { formatINR } from "@/lib/money";
 import { SUPPORT_WHATSAPP_NUMBER } from "@/lib/config";
+import { DRILL_TEMPLATE_MODELS } from "@/lib/drill-templates/data";
 import { Badge, btn, Card, EmptyState, PageHeader, ProductThumb } from "@/components/ui";
 import { AddToCart } from "@/components/cart/AddToCart";
+
+const PRODUCTS_WITH_DRILL_TEMPLATES = new Set(DRILL_TEMPLATE_MODELS.map((m) => m.productId));
 
 export const metadata: Metadata = { title: "Catalog" };
 
@@ -73,6 +76,12 @@ export default async function ProductsPage() {
                     unit={product.unit}
                     lastSpec={lastSpec}
                   />
+
+                  {PRODUCTS_WITH_DRILL_TEMPLATES.has(product.id) ? (
+                    <a href="/products/drill-templates" className={btn("secondary", "w-full")}>
+                      View drill templates →
+                    </a>
+                  ) : null}
 
                   <a
                     href={`https://wa.me/${SUPPORT_WHATSAPP_NUMBER}?text=${encodeURIComponent(
