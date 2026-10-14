@@ -46,6 +46,18 @@ export default async function DrillTemplatesPage() {
                 </span>
               </div>
 
+              <div className="flex flex-wrap items-start gap-4 border-b border-line px-5 py-4 sm:flex-nowrap">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={`/api/drill-templates/preview?slug=${model.slug}`}
+                  alt={`${model.name} drill template preview`}
+                  className="h-40 w-auto shrink-0 rounded border border-line bg-white object-contain"
+                />
+                <p className="text-sm text-muted">
+                  Preview rendered from the current revision's embedded page thumbnail.
+                </p>
+              </div>
+
               {current.map((rev) => (
                 <div
                   key={rev.storageKey}
