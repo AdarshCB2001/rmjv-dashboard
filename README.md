@@ -52,6 +52,12 @@ sign anyone in.
 4. **Project management link** — set `FIREBASE_SERVICE_ACCOUNT_PATH` (key file kept outside the
    repo) or `FIREBASE_SERVICE_ACCOUNT`.
 5. After changing PDFs run `npm run thumbs` (card pictures in `public/thumbs/`), then `npm run catalog:push`.
-6. `npm run build && npm start`.
+6. **Deploy to Cloudflare Workers** (OpenNext adapter, `wrangler.jsonc`, serves `rmjv.funkustoms.com`):
+   `npx wrangler login`, then set the secrets once —
+   `npx wrangler secret put` for each of `SUPABASE_SERVICE_ROLE_KEY`, `SWIPE_API_KEY`, `CRON_SECRET`,
+   `FIREBASE_SERVICE_ACCOUNT` (JSON), `ADMIN_EMAILS` — and put the non-secret `NEXT_PUBLIC_*` values in a
+   `.env.production` file before building (they are inlined at build time). Then `npm run deploy`.
+   A Cron Trigger calls `/api/cron/sync` every 5 minutes (also keeps the free Supabase project awake).
+   Build on Linux/WSL or CI: on Windows the adapter needs symlink rights. Local test: `npm run preview`.
 
 See `.env.example` for every variable. Never commit `.env*` or the Firebase key.

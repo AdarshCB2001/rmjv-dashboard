@@ -1,7 +1,6 @@
 import "server-only";
 import { readFileSync } from "node:fs";
-import { applicationDefault, cert, getApps, initializeApp } from "firebase-admin/app";
-import { FieldValue, getFirestore } from "firebase-admin/firestore";
+import { firestore as firestoreClient } from "@/lib/firestore-rest";
 import { defaultPdfUrl } from "@/lib/catalog";
 import type { Order, OrderStatus, PaymentStatus } from "@/lib/types";
 
@@ -22,15 +21,11 @@ const SERVICE_ACCOUNT_PATH = process.env.FIREBASE_SERVICE_ACCOUNT_PATH?.trim();
 const SERVICE_ACCOUNT_JSON = process.env.FIREBASE_SERVICE_ACCOUNT?.trim();
 export const HAS_PM_SYNC = Boolean(SERVICE_ACCOUNT_PATH || SERVICE_ACCOUNT_JSON);
 
-function firestore() {
-  if (getApps().length === 0) {
-    const raw = SERVICE_ACCOUNT_JSON ?? readFileSync(SERVICE_ACCOUNT_PATH!, "utf8");
-    initializeApp({ credential: raw ? cert(JSON.parse(raw)) : applicationDefault() });
-  }
-  return getFirestore();
-}
+// Workers have no disk: paste the key JSON into FIREBASE_SERVICE_ACCOUNT there. The path form is dev-only.
+const firestore = () =>
+  firestoreClient(JSON.parse(SERVICE_ACCOUNT_JSON ?? readFileSync(SERVICE_ACCOUNT_PATH!, "utf8")));
 
-const tasks = () => firestore().collection(`${ORG}/tasks`);
+const taskPath = (id: string) => `${ORG}/tasks/${id}`;
 
 /** PM stage -> what it means for the portal order. Replacement leaves the order alone. */
 export function mapStage(stage: string): { status?: OrderStatus; payment?: PaymentStatus } {
@@ -78,10 +73,10 @@ export async function pushOrderToPm(order: Order): Promise<string> {
 
   const customTitle = /^Order title: (.+)$/m.exec(items[0]?.notes ?? "")?.[1];
 
-  const ref = tasks().doc(id);
-  if ((await ref.get()).exists) return id;
+  const fs = firestore();
+  if (await fs.exists(taskPath(id))) return id;
 
-  await ref.set({
+  await fs.set(taskPath(id), {
     title: `${order.order_number} · ${
       customTitle ??
       (items.length === 1 ? `${items[0].product?.name ?? "Order"} × ${items[0].quantity}` : `${items.length} items`)
@@ -102,8 +97,7 @@ export async function pushOrderToPm(order: Order): Promise<string> {
     activity: [],
     source: "rmjv-portal",
     updatedBy: "rmjv-portal",
-    updatedAt: FieldValue.serverTimestamp(),
-  });
+  }, "updatedAt");
   return id;
 }
 
@@ -119,8 +113,7 @@ export async function pullStages(
   if (!HAS_PM_SYNC || linked.length === 0) return { orders, changes: [] };
 
   try {
-    const snaps = await firestore().getAll(...linked.map((o) => tasks().doc(o.pm_task_id!)));
-    const stageByTask = new Map(snaps.filter((s) => s.exists).map((s) => [s.id, String(s.data()?.stage)]));
+    const stageByTask = await firestore().getStrings(linked.map((o) => taskPath(o.pm_task_id!)), "stage");
 
     const changes: { id: string; patch: { status?: OrderStatus; payment_status?: PaymentStatus } }[] = [];
     const next = orders.map((o) => {
