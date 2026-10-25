@@ -17,7 +17,7 @@ function gateMessage(result: Extract<GateResult, { ok: false }>): string {
   if (result.reason === "domain") {
     return `Access is limited to @${ALLOWED_EMAIL_DOMAIN} accounts.`;
   }
-  return "That address isn't set up for this portal yet. Ask FunKustoms to add you, or use the chat on the login page.";
+  return "That address isn't set up for this portal yet. Ask FunKustoms to add you.";
 }
 
 /**

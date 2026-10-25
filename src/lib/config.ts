@@ -62,5 +62,8 @@ export const MAX_FILE_BYTES = 50 * 1024 * 1024;
 export const isAllowedFileName = (name: string) =>
   ALLOWED_FILE_EXTENSIONS.some((ext) => name.toLowerCase().endsWith(ext));
 
-export const isAllowedEmail = (email: string) =>
-  email.trim().toLowerCase().endsWith(`@${ALLOWED_EMAIL_DOMAIN}`);
+/** On the allowed domain, or a bootstrap admin (FunKustoms staff sign in from their own domain). */
+export const isAllowedEmail = (email: string) => {
+  const e = email.trim().toLowerCase();
+  return e.endsWith(`@${ALLOWED_EMAIL_DOMAIN}`) || BOOTSTRAP_ADMIN_EMAILS.includes(e);
+};
