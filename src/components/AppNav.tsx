@@ -20,29 +20,24 @@ const LINKS = [
   { href: "/orders", label: "Orders" },
 ];
 
-export function AppNav({ email, fullName, isAdmin, demoMode, signOut }: Props) {
+export function AppNav({ email, fullName, isAdmin, signOut }: Props) {
   const pathname = usePathname();
   const { count, ready } = useCart();
   const [menuOpen, setMenuOpen] = useState(false);
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
-  const navLinks = isAdmin ? [...LINKS, { href: "/admin", label: "Admin" }] : LINKS;
+  const navLinks = isAdmin
+    ? [...LINKS, { href: "/invoices", label: "Invoices" }, { href: "/admin", label: "Admin" }]
+    : LINKS;
 
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-surface/85 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4 sm:px-6">
         <Link href="/dashboard" className="flex items-center gap-2.5 font-semibold text-ink">
-          <span
-            aria-hidden
-            className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent text-xs font-bold text-on-accent"
-          >
-            FK
-          </span>
-          <span className="hidden text-sm sm:inline">
-            RMJV Portal
-            <span className="ml-1.5 font-normal text-faint">by FunKustoms</span>
-          </span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/spintly-logo.png" alt="Spintly" className="h-7 w-auto" />
+          <span className="hidden text-sm sm:inline">Order Portal</span>
         </Link>
 
         <nav className="ml-2 hidden items-center gap-1 md:flex" aria-label="Main">
@@ -64,11 +59,6 @@ export function AppNav({ email, fullName, isAdmin, demoMode, signOut }: Props) {
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
-          {demoMode ? (
-            <span className="hidden rounded-full bg-warning-soft px-2.5 py-0.5 text-xs font-medium text-warning sm:inline">
-              Demo data
-            </span>
-          ) : null}
 
           <Link
             href="/cart"

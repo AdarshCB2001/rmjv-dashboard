@@ -2,10 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
-import { upsertProduct, type ProductInput } from "@/lib/data/products";
-import { updateOrderAdmin } from "@/lib/data/orders";
+import { syncCatalogProducts, upsertProduct, type ProductInput } from "@/lib/data/products";
+import { getOrder, updateOrderAdmin } from "@/lib/data/orders";
 import { addAllowedUser, updateAllowedUser } from "@/lib/data/users";
-import { ORDER_STATUSES, type OrderStatus } from "@/lib/types";
+import { ORDER_STATUSES, PAYMENT_STATUSES, type OrderStatus, type PaymentStatus } from "@/lib/types";
 
 export type ActionState = { error?: string; ok?: string };
 
@@ -70,9 +70,16 @@ export async function updateOrder(_prev: ActionState, formData: FormData): Promi
   const valid: string[] = [...ORDER_STATUSES, "cancelled"];
   if (!valid.includes(status)) return { error: "Unknown status." };
 
+  const paymentStatus = String(formData.get("payment_status") ?? "");
+  if (!(PAYMENT_STATUSES as readonly string[]).includes(paymentStatus)) {
+    return { error: "Unknown payment status." };
+  }
+
   try {
+    // Linked orders take status/payment from the PM app, so the form's copies are ignored.
+    const linked = Boolean((await getOrder(orderId, null))?.pm_task_id);
     await updateOrderAdmin(orderId, {
-      status: status as OrderStatus,
+      ...(linked ? {} : { status: status as OrderStatus, payment_status: paymentStatus as PaymentStatus }),
       courier: text(formData.get("courier")),
       tracking_number: text(formData.get("tracking_number")),
       notes: text(formData.get("notes")),
@@ -130,4 +137,12 @@ export async function toggleStaffActive(
 
   revalidatePath("/admin/staff");
   return { ok: active ? "Access restored." : "Access revoked." };
+}
+
+/** Creates a priced product row for every folder in Products/ that lacks one. */
+export async function syncCatalog(): Promise<void> {
+  await requireAdmin();
+  await syncCatalogProducts();
+  revalidatePath("/admin/products");
+  revalidatePath("/products");
 }

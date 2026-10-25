@@ -3,11 +3,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { btn, inputClass } from "@/components/ui";
+import { isValidQuantity } from "@/lib/packs";
 import { useCart } from "./CartProvider";
 
 type Props = {
   productId: string;
   unit: string | null;
+  /** Minimum order quantity; quantity must be a multiple of it. */
+  pack?: number;
   /** Quantity and notes from this user's most recent order of this product. */
   lastSpec: { quantity: number; notes: string } | null;
 };
@@ -20,18 +23,21 @@ type Props = {
  * point of the portal for repeat orders. Editing is available behind a disclosure so
  * the common path stays one click.
  */
-export function AddToCart({ productId, unit, lastSpec }: Props) {
+export function AddToCart({ productId, unit, pack = 1, lastSpec }: Props) {
   const { addLine, lines } = useCart();
   const router = useRouter();
 
   const inCart = lines.find((l) => l.productId === productId);
   const [open, setOpen] = useState(false);
-  const [quantity, setQuantity] = useState(lastSpec?.quantity ?? 1);
+  const [quantity, setQuantity] = useState(
+    lastSpec && isValidQuantity(lastSpec.quantity, pack) ? lastSpec.quantity : pack,
+  );
+  const valid = isValidQuantity(quantity, pack);
   const [notes, setNotes] = useState(lastSpec?.notes ?? "");
   const [justAdded, setJustAdded] = useState(false);
 
   const add = (line: { quantity: number; notes: string }) => {
-    if (line.quantity < 1) return;
+    if (!isValidQuantity(line.quantity, pack)) return;
     addLine({ productId, quantity: line.quantity, notes: line.notes });
     setJustAdded(true);
     window.setTimeout(() => setJustAdded(false), 2000);
@@ -50,6 +56,7 @@ export function AddToCart({ productId, unit, lastSpec }: Props) {
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
+            disabled={!valid}
             className={btn("primary", "flex-1")}
             onClick={() => add({ quantity, notes })}
           >
@@ -71,12 +78,17 @@ export function AddToCart({ productId, unit, lastSpec }: Props) {
             <input
               id={`qty-${productId}`}
               type="number"
-              min={1}
-              step={1}
+              min={pack}
+              step={pack}
               value={quantity}
-              onChange={(e) => setQuantity(Math.max(1, Number(e.target.value) || 1))}
+              onChange={(e) => setQuantity(Math.floor(Number(e.target.value)) || 0)}
               className={inputClass}
             />
+            {pack > 1 ? (
+              <p className={valid ? "text-xs text-muted" : "text-xs font-medium text-danger"}>
+                Minimum {pack}, in multiples of {pack} (one sheet)
+              </p>
+            ) : null}
           </div>
           <div className="space-y-1.5">
             <label
@@ -97,6 +109,7 @@ export function AddToCart({ productId, unit, lastSpec }: Props) {
           <div className="flex gap-2">
             <button
               type="button"
+              disabled={!valid}
               className={btn("primary", "flex-1")}
               onClick={() => add({ quantity, notes })}
             >

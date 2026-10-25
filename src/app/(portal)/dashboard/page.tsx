@@ -27,6 +27,7 @@ export default async function DashboardPage() {
     (o) => o.status !== "delivered" && o.status !== "cancelled",
   );
   const awaitingPayment = orders.filter((o) => o.payment_status === "unpaid");
+  const toConfirm = orders.filter((o) => o.status === "pending");
   const outstanding = awaitingPayment.reduce((sum, o) => sum + o.total_amount, 0);
   const recent = orders.slice(0, 5);
 
@@ -58,21 +59,21 @@ export default async function DashboardPage() {
         <Stat label="Products available" value={String(products.length)} hint="In your catalog" />
       </div>
 
-      {awaitingPayment.length > 0 ? (
+      {toConfirm.length > 0 ? (
         <Card className="mt-6 border-warning/40 bg-warning-soft p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-ink">
-                {awaitingPayment.length === 1
-                  ? "One order is waiting on payment"
-                  : `${awaitingPayment.length} orders are waiting on payment`}
+                {toConfirm.length === 1
+                  ? "One order is waiting to be confirmed"
+                  : `${toConfirm.length} orders are waiting to be confirmed`}
               </p>
               <p className="mt-0.5 text-sm text-body">
-                We start production once payment clears — {formatINR(outstanding)} outstanding.
+                No upfront payment — confirm and we get started.
               </p>
             </div>
-            <Link href={`/orders/${awaitingPayment[0].id}`} className={btn("primary")}>
-              Pay now
+            <Link href={`/orders/${toConfirm[0].id}`} className={btn("primary")}>
+              Confirm the order
             </Link>
           </div>
         </Card>

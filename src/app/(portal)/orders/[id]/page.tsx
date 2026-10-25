@@ -7,6 +7,8 @@ import { getOrder } from "@/lib/data/orders";
 import { listFilesForOrder, formatFileSize } from "@/lib/data/files";
 import { formatINR, lineTotals, orderTotals } from "@/lib/money";
 import { isIntraState } from "@/lib/billing";
+import { BANK, PAYMENT_QR } from "@/lib/payment";
+import { HAS_SWIPE } from "@/lib/swipe";
 import {
   Badge,
   btn,
@@ -18,19 +20,20 @@ import {
   PageHeader,
 } from "@/components/ui";
 import { PaymentBadge, StatusBadge, StatusStepper } from "@/components/status";
-import { PayButton } from "@/components/PayButton";
+import { SubmitButton } from "@/components/FormBits";
+import { EditQuantity } from "@/components/EditQuantity";
+import { packSizes } from "@/lib/catalog";
+import { confirmOrder } from "./actions";
 import { FileUpload } from "@/components/FileUpload";
 
 export const metadata: Metadata = { title: "Order" };
 
 export default async function OrderDetailPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ pay?: string }>;
 }) {
-  const [{ id }, { pay }] = await Promise.all([params, searchParams]);
+  const { id } = await params;
   const session = await requireSession();
 
   // Scoped to this user's email, so someone else's order id 404s rather than leaking.
@@ -38,9 +41,9 @@ export default async function OrderDetailPage({
   if (!order) notFound();
 
   const items = order.items ?? [];
+  const packs = packSizes();
   const filesByItem = await listFilesForOrder(items.map((i) => i.id));
   const totals = orderTotals(items);
-  const unpaid = order.payment_status === "unpaid" || order.payment_status === "failed";
   const intraState = isIntraState();
 
   return (
@@ -63,7 +66,7 @@ export default async function OrderDetailPage({
       />
 
       <Card className="p-5">
-        <StatusStepper status={order.status} />
+        <StatusStepper status={order.status} paymentStatus={order.payment_status} />
         {order.tracking_number ? (
           <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-1 border-t border-line pt-4 text-sm">
             <span className="text-muted">
@@ -97,22 +100,42 @@ export default async function OrderDetailPage({
                   <div>
                     <h3 className="font-medium text-ink">{item.product?.name ?? "Item"}</h3>
                     <p className="mt-0.5 text-sm text-muted nums">
-                      {item.quantity} × {formatINR(item.unit_price)}{" "}
-                      {item.product?.unit ? `(${item.product.unit})` : ""} · +{item.gst_rate}% GST
+                      {item.unit_price > 0 ? (
+                        <>
+                          {item.quantity} × {formatINR(item.unit_price)}{" "}
+                          {item.product?.unit ? `(${item.product.unit})` : ""} · +{item.gst_rate}% GST
+                        </>
+                      ) : (
+                        <>
+                          {item.quantity} pcs ·{" "}
+                          <span className="font-medium text-danger">Price yet to be set</span>
+                        </>
+                      )}
                     </p>
                   </div>
                   <p className="font-medium text-ink nums">{formatINR(line.total)}</p>
                 </div>
 
+                {order.status === "pending" ? (
+                  <EditQuantity
+                    orderId={order.id}
+                    itemId={item.id}
+                    quantity={item.quantity}
+                    pack={packs.get(item.product?.name ?? "") ?? 1}
+                  />
+                ) : null}
+
                 {item.notes ? (
-                  <p className="mt-3 rounded-lg bg-surface-2 px-3 py-2 text-sm text-body">
+                  <p className="mt-3 whitespace-pre-line rounded-lg bg-surface-2 px-3 py-2 text-sm text-body">
                     {item.notes}
                   </p>
                 ) : null}
 
                 <div className="mt-4 border-t border-line pt-4">
                   <div className="mb-2 flex items-center justify-between">
-                    <h4 className="text-sm font-medium text-ink">Artwork</h4>
+                    <h4 className="text-sm font-medium text-ink">
+                      Artwork <span className="font-normal text-muted">(optional)</span>
+                    </h4>
                     {files.length > 0 ? (
                       <Badge>
                         {files.length} version{files.length === 1 ? "" : "s"}
@@ -120,11 +143,7 @@ export default async function OrderDetailPage({
                     ) : null}
                   </div>
 
-                  {files.length === 0 ? (
-                    <p className="mb-3 text-sm text-muted">
-                      No artwork uploaded yet. We can&apos;t start this line until we have it.
-                    </p>
-                  ) : (
+                  {files.length > 0 ? (
                     <ul className="mb-3 divide-y divide-line">
                       {files.map((file) => (
                         <li
@@ -154,8 +173,13 @@ export default async function OrderDetailPage({
                         </li>
                       ))}
                     </ul>
-                  )}
+                  ) : null}
 
+                  <p className="mb-3 text-sm leading-relaxed text-muted">
+                    Need a change? Upload a new artwork version — we always use the latest one and
+                    keep the older versions on file. For anything else, message us in chat and it
+                    stays attached to your history.
+                  </p>
                   <FileUpload orderItemId={item.id} currentVersion={item.file_version} />
                 </div>
               </Card>
@@ -191,49 +215,81 @@ export default async function OrderDetailPage({
               </DescriptionRow>
             </dl>
 
-            <div className="mt-5">
-              {unpaid ? (
-                <PayButton
-                  orderId={order.id}
-                  orderNumber={order.order_number}
-                  email={session.email}
-                  fullName={session.fullName}
-                  autoOpen={pay === "1"}
-                />
-              ) : order.payment_status === "paid" ? (
-                <div className="space-y-3">
-                  <Notice tone="positive">
-                    Paid
-                    {order.payment_id ? (
-                      <>
-                        {" "}
-                        · ref <span className="font-mono text-xs">{order.payment_id}</span>
-                      </>
-                    ) : null}
-                  </Notice>
-                  <a href={`/api/invoices/${order.id}`} className={btn("secondary", "w-full")}>
-                    Download GST invoice
-                  </a>
-                  {order.invoice ? (
-                    <p className="text-center text-xs text-muted">
-                      Invoice {order.invoice.invoice_number}
-                    </p>
+            <div className="mt-5 space-y-3">
+              {order.status === "pending" ? (
+                <form action={confirmOrder.bind(null, order.id)} className="space-y-2">
+                  <SubmitButton pendingLabel="Confirming…" className="w-full">
+                    Confirm the order
+                  </SubmitButton>
+                  <p className="text-center text-xs text-muted">
+                    No payment needed now. We start once you confirm.
+                  </p>
+                </form>
+              ) : order.status === "cancelled" ? null : (
+                <>
+                  {order.payment_status === "paid" ? (
+                    <Notice tone="positive">
+                      Paid
+                      {order.payment_id ? (
+                        <>
+                          {" "}
+                          · ref <span className="font-mono text-xs">{order.payment_id}</span>
+                        </>
+                      ) : null}
+                    </Notice>
+                  ) : order.payment_status === "refunded" ? (
+                    <Notice tone="neutral">This order was refunded.</Notice>
                   ) : null}
-                </div>
-              ) : (
-                <Notice tone="neutral">This order was refunded.</Notice>
+                  {order.status === "shipped" || order.status === "delivered" ? (
+                    <>
+                      {HAS_SWIPE && !order.swipe_hash_id ? (
+                        <p className="text-center text-xs text-muted">
+                          {order.pm_task_id ? "Your GST invoice is being prepared." : "No GST invoice has been issued for this order."}
+                        </p>
+                      ) : (
+                        <a
+                          href={`/api/invoices/${order.id}`}
+                          className={btn("secondary", "w-full")}
+                        >
+                          Download GST invoice
+                        </a>
+                      )}
+                      {order.swipe_invoice_number ?? order.invoice?.invoice_number ? (
+                        <p className="text-center text-xs text-muted">
+                          Invoice {order.swipe_invoice_number ?? order.invoice?.invoice_number}
+                        </p>
+                      ) : null}
+                    </>
+                  ) : null}
+                </>
               )}
             </div>
           </Card>
 
-          <Card className="p-5">
-            <h2 className="text-sm font-semibold text-ink">Need a change?</h2>
-            <p className="mt-1.5 text-sm leading-relaxed text-muted">
-              Upload a new artwork version above — we always use the latest one and keep the
-              older versions on file. For anything else, message us in chat and it stays
-              attached to your history.
-            </p>
-          </Card>
+          {order.status === "delivered" && order.payment_status === "unpaid" ? (
+            <Card className="p-5">
+              <h2 className="font-semibold text-ink">Pay for this order</h2>
+              <p className="mt-1 text-sm text-muted">
+                Amount due <span className="font-medium text-ink nums">{formatINR(totals.total)}</span>.
+                Scan the QR with any UPI app, or transfer to our bank account.
+              </p>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={PAYMENT_QR}
+                alt="FunKustoms UPI payment QR code"
+                className="mx-auto mt-4 w-48 rounded-lg border border-line"
+              />
+              <dl className="mt-4 divide-y divide-line">
+                <DescriptionRow label="Account name">{BANK.accountName}</DescriptionRow>
+                <DescriptionRow label="Account number">
+                  <span className="font-mono text-sm">{BANK.accountNumber}</span>
+                </DescriptionRow>
+                <DescriptionRow label="IFSC code">
+                  <span className="font-mono text-sm">{BANK.ifsc}</span>
+                </DescriptionRow>
+              </dl>
+            </Card>
+          ) : null}
         </div>
       </div>
     </>

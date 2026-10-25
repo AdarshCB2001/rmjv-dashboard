@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { ALLOWED_EMAIL_DOMAIN, DEMO_MODE } from "@/lib/config";
+import { MadeBy } from "@/components/MadeBy";
+import { ALLOWED_EMAIL_DOMAIN, DEMO_LOCKED, DEMO_MODE } from "@/lib/config";
 import { listAllowedUsers } from "@/lib/data/users";
 import { Card, Notice } from "@/components/ui";
 import { DemoSignInForm, MagicLinkForm } from "./LoginForm";
@@ -30,15 +31,13 @@ export default async function LoginPage({
     <main className="flex flex-1 items-center justify-center px-4 py-12">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <span
-            aria-hidden
-            className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-accent text-sm font-bold text-on-accent"
-          >
-            FK
-          </span>
-          <h1 className="text-2xl font-semibold tracking-tight text-ink">RMJV Portal</h1>
+          <div className="mb-5 flex items-center justify-center gap-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/spintly-logo.png" alt="Spintly" className="h-14 w-auto" />
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight text-ink">Spintly Order Portal</h1>
           <p className="mt-1.5 text-sm text-muted">
-            Reorder print jobs, upload artwork, pay and track — all in one place.
+            Order print jobs, upload artwork and track delivery — all in one place.
           </p>
         </div>
 
@@ -49,7 +48,12 @@ export default async function LoginPage({
             </div>
           ) : null}
 
-          {DEMO_MODE ? (
+          {DEMO_LOCKED ? (
+            <Notice tone="danger" title="Sign-in isn't set up">
+              This deployment isn&apos;t connected to Supabase yet, so nobody can sign in. Please contact
+              FunKustoms.
+            </Notice>
+          ) : DEMO_MODE ? (
             <div className="space-y-5">
               <Notice tone="warning" title="Demo mode">
                 Supabase isn&apos;t configured, so the portal is running on seeded sample data
@@ -64,9 +68,9 @@ export default async function LoginPage({
           )}
         </Card>
 
-        <p className="mt-6 text-center text-xs text-faint">
-          FunKustoms · {new Date().getFullYear()}
-        </p>
+        <div className="mt-6">
+          <MadeBy />
+        </div>
       </div>
     </main>
   );

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { WhatsAppBubble } from "@/components/WhatsAppBubble";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,8 +15,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "RMJV Portal — FunKustoms",
-    template: "%s · RMJV Portal",
+    default: "Spintly Order Portal",
+    template: "%s · Spintly Order Portal",
   },
   description: "Reorder print jobs, upload artwork, pay, and track orders with FunKustoms.",
   // A private customer portal has no business in search results.
@@ -32,7 +33,9 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">{children}
+        <WhatsAppBubble />
+      </body>
     </html>
   );
 }

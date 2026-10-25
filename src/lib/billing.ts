@@ -1,3 +1,4 @@
+import { BANK } from "@/lib/payment";
 /**
  * Invoice header details.
  *
@@ -39,7 +40,9 @@ export const BUYER: Party = {
   stateCode: val(process.env.BUYER_STATE_CODE) ?? PLACEHOLDER,
 };
 
-export const BANK_DETAILS = val(process.env.SELLER_BANK_DETAILS);
+export const BANK_DETAILS =
+  val(process.env.SELLER_BANK_DETAILS) ??
+  `${BANK.accountName} · A/c ${BANK.accountNumber} · IFSC ${BANK.ifsc}`;
 
 /** Every field that legally has to be on the invoice is present. */
 export const isBillingConfigured =

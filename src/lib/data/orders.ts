@@ -2,7 +2,17 @@ import { DEMO_MODE } from "@/lib/config";
 import { clone, db, demoId } from "@/lib/demo/store";
 import { adminSupabase, serverSupabase } from "@/lib/supabase/server";
 import { orderTotals } from "@/lib/money";
-import type { DraftLine, Invoice, Order, OrderItem, OrderStatus, Product } from "@/lib/types";
+import type {
+  DraftLine,
+  Invoice,
+  Order,
+  OrderItem,
+  OrderStatus,
+  PaymentStatus,
+  Product,
+} from "@/lib/types";
+import { pullStages } from "@/lib/pm-sync";
+import { issueInvoices } from "@/lib/swipe";
 
 const ORDER_SELECT = "*, items:order_items(*, product:products(*)), invoice:invoices(*)";
 
@@ -32,7 +42,21 @@ function demoOrder(order: Order): Order {
 
 const newestFirst = (a: Order, b: Order) => b.created_at.localeCompare(a.created_at);
 
-export async function listOrders(userEmail: string): Promise<Order[]> {
+export const listOrders = async (userEmail: string) => syncStages(await listOrdersRaw(userEmail));
+export const listAllOrders = async () => syncStages(await listAllOrdersRaw());
+export async function getOrder(id: string, userEmail: string | null): Promise<Order | null> {
+  const order = await getOrderRaw(id, userEmail);
+  return order ? (await syncStages([order]))[0] : null;
+}
+
+/** Applies project-management stage changes to linked orders and saves what changed. */
+async function syncStages(orders: Order[]): Promise<Order[]> {
+  const { orders: next, changes } = await pullStages(orders);
+  for (const c of changes) await updateOrderAdmin(c.id, c.patch);
+  return issueInvoices(next, (id, patch) => updateOrderAdmin(id, patch));
+}
+
+async function listOrdersRaw(userEmail: string): Promise<Order[]> {
   if (DEMO_MODE) {
     return db()
       .orders.filter((o) => o.user_email === userEmail)
@@ -53,7 +77,7 @@ export async function listOrders(userEmail: string): Promise<Order[]> {
 }
 
 /** Admin view — every order, regardless of owner. Requires `requireAdmin()`. */
-export async function listAllOrders(): Promise<Order[]> {
+async function listAllOrdersRaw(): Promise<Order[]> {
   if (DEMO_MODE) return db().orders.map(demoOrder).sort(newestFirst);
 
   const supabase = adminSupabase();
@@ -70,7 +94,7 @@ export async function listAllOrders(): Promise<Order[]> {
  * Fetches one order. Pass `userEmail` for customer access (returns null for someone
  * else's order) or `null` for admin access.
  */
-export async function getOrder(id: string, userEmail: string | null): Promise<Order | null> {
+async function getOrderRaw(id: string, userEmail: string | null): Promise<Order | null> {
   if (DEMO_MODE) {
     const order = db().orders.find((o) => o.id === id);
     if (!order) return null;
@@ -317,54 +341,49 @@ export async function createOrder(userEmail: string, lines: DraftLine[]): Promis
   return created;
 }
 
-/**
- * Marks an order paid. Called only after the Razorpay signature has been verified
- * server-side, so it uses the service-role client and takes the payment ids as given.
- */
-export async function markOrderPaid(
-  orderId: string,
-  paymentId: string,
-  razorpayOrderId: string,
-): Promise<void> {
-  if (DEMO_MODE) {
-    const order = db().orders.find((o) => o.id === orderId);
-    if (!order) throw new Error("Order not found");
-    order.payment_status = "paid";
-    order.payment_id = paymentId;
-    order.razorpay_order_id = razorpayOrderId;
-    if (order.status === "pending") order.status = "confirmed";
-    order.updated_at = new Date().toISOString();
-    return;
-  }
+/** Changes one line's quantity and re-totals the order. Callers check ownership and status. */
+export async function setItemQuantity(orderId: string, itemId: string, quantity: number): Promise<void> {
+  const retotal = (items: OrderItem[]) => {
+    const t = orderTotals(items);
+    return { subtotal: t.subtotal, tax_amount: t.taxAmount, total_amount: t.total };
+  };
 
-  const supabase = adminSupabase();
-  if (!supabase) throw new Error("SUPABASE_SERVICE_ROLE_KEY is required to settle payments.");
-  const { error } = await supabase
-    .from("orders")
-    .update({
-      payment_status: "paid",
-      payment_id: paymentId,
-      razorpay_order_id: razorpayOrderId,
-      status: "confirmed",
+  if (DEMO_MODE) {
+    const store = db();
+    const item = store.order_items.find((i) => i.id === itemId && i.order_id === orderId);
+    const order = store.orders.find((o) => o.id === orderId);
+    if (!item || !order) throw new Error("Item not found");
+    item.quantity = quantity;
+    Object.assign(order, retotal(store.order_items.filter((i) => i.order_id === orderId)), {
       updated_at: new Date().toISOString(),
-    })
-    .eq("id", orderId);
-  if (error) throw error;
-}
-
-export async function setRazorpayOrderId(orderId: string, razorpayOrderId: string): Promise<void> {
-  if (DEMO_MODE) {
-    const order = db().orders.find((o) => o.id === orderId);
-    if (order) order.razorpay_order_id = razorpayOrderId;
+    });
     return;
   }
+
   const supabase = adminSupabase();
-  if (!supabase) return;
-  await supabase.from("orders").update({ razorpay_order_id: razorpayOrderId }).eq("id", orderId);
+  if (!supabase) throw new Error("SUPABASE_SERVICE_ROLE_KEY is required to edit orders.");
+  const { error } = await supabase
+    .from("order_items")
+    .update({ quantity })
+    .eq("id", itemId)
+    .eq("order_id", orderId);
+  if (error) throw error;
+  const { data, error: readError } = await supabase.from("order_items").select("*").eq("order_id", orderId);
+  if (readError) throw readError;
+  const { error: totalError } = await supabase
+    .from("orders")
+    .update({ ...retotal(data as OrderItem[]), updated_at: new Date().toISOString() })
+    .eq("id", orderId);
+  if (totalError) throw totalError;
 }
+
 
 export type OrderAdminPatch = {
   status?: OrderStatus;
+  payment_status?: PaymentStatus;
+  pm_task_id?: string | null;
+  swipe_hash_id?: string | null;
+  swipe_invoice_number?: string | null;
   tracking_number?: string | null;
   courier?: string | null;
   notes?: string | null;

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CHAT_PROVIDER, DEMO_MODE, HAS_RAZORPAY, HAS_SUPABASE } from "@/lib/config";
+import { DEMO_MODE, HAS_SUPABASE } from "@/lib/config";
+import { HAS_SWIPE } from "@/lib/swipe";
 import { isBillingConfigured } from "@/lib/billing";
 import { listAllOrders } from "@/lib/data/orders";
 import { listProducts } from "@/lib/data/products";
@@ -128,12 +129,12 @@ export default async function AdminOverviewPage() {
                 detail={HAS_SUPABASE ? "Connected — live data." : "Missing keys — running on demo data."}
               />
               <Check
-                ok={HAS_RAZORPAY}
-                label="Razorpay"
+                ok={HAS_SWIPE}
+                label="SWIPE invoicing"
                 detail={
-                  HAS_RAZORPAY
-                    ? "Live checkout with server-side signature checks."
-                    : "No keys — payments are simulated."
+                  HAS_SWIPE
+                    ? "GST invoices are issued on SWIPE when an order reaches Completed."
+                    : "No API key — invoices fall back to the built-in draft PDF."
                 }
               />
               <Check
@@ -143,15 +144,6 @@ export default async function AdminOverviewPage() {
                   isBillingConfigured
                     ? "Supplier and buyer GSTINs are set."
                     : "Invoices render as DRAFT until GSTINs are set."
-                }
-              />
-              <Check
-                ok={CHAT_PROVIDER !== "none"}
-                label="Live chat"
-                detail={
-                  CHAT_PROVIDER === "none"
-                    ? "No Crisp or Tawk.to ID — the widget is hidden."
-                    : `${CHAT_PROVIDER === "crisp" ? "Crisp" : "Tawk.to"} embedded with user identity.`
                 }
               />
             </ul>

@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { listProducts } from "@/lib/data/products";
 import { formatINR } from "@/lib/money";
-import { Badge, Card, ProductThumb } from "@/components/ui";
+import { Badge, btn, Card, ProductThumb } from "@/components/ui";
+import { syncCatalog } from "../actions";
 import { NewProductCard, ProductForm } from "./ProductForm";
 
 export const metadata: Metadata = { title: "Admin · Catalog" };
@@ -16,6 +17,12 @@ export default async function AdminProductsPage() {
           Catalog{" "}
           <span className="text-sm font-normal text-muted">({products.length})</span>
         </h2>
+
+        <form action={syncCatalog}>
+          <button type="submit" className={btn("secondary")}>
+            Sync products from Products/ folders
+          </button>
+        </form>
 
         {products.length === 0 ? (
           <Card className="p-6 text-center text-sm text-muted">

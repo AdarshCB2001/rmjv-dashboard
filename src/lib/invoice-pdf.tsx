@@ -304,9 +304,10 @@ function InvoiceDocument({ order, invoice }: { order: Order; invoice: Invoice })
         ) : null}
 
         <Text style={styles.notes}>
-          Paid online
-          {order.payment_id ? ` · payment reference ${order.payment_id}` : ""}. This is a
-          computer-generated invoice.
+          {order.payment_status === "paid"
+            ? `Payment received${order.payment_id ? ` · reference ${order.payment_id}` : ""}.`
+            : "Payment due on delivery."}{" "}
+          This is a computer-generated invoice.
         </Text>
 
         <View style={styles.signRow}>

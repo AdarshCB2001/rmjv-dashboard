@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { BOOTSTRAP_ADMIN_EMAILS, DEMO_MODE, isAllowedEmail } from "@/lib/config";
+import { BOOTSTRAP_ADMIN_EMAILS, DEMO_LOCKED, DEMO_MODE, isAllowedEmail } from "@/lib/config";
 import { DEMO_COOKIE, readSession } from "@/lib/demo/session";
 import { clone, db } from "@/lib/demo/store";
 import { adminSupabase, serverSupabase } from "@/lib/supabase/server";
@@ -64,6 +64,7 @@ const resolveAdmin = (user: AllowedUser | null, email: string) =>
  */
 export const getSession = cache(async (): Promise<Session | null> => {
   if (DEMO_MODE) {
+    if (DEMO_LOCKED) return null;
     const raw = (await cookies()).get(DEMO_COOKIE)?.value;
     const session = await readSession(raw);
     if (!session) return null;

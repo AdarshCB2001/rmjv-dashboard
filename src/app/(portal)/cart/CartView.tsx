@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import type { Product } from "@/lib/types";
+import { isValidQuantity } from "@/lib/packs";
 import { formatINR, lineTotals, round2 } from "@/lib/money";
 import {
   btn,
@@ -31,6 +32,7 @@ export function CartView({ products }: { products: Product[] }) {
     if (!product) return [];
     return [{ line, product, totals: lineTotals(product.base_price, line.quantity, product.gst_rate) }];
   });
+  const badQty = priced.some((p) => !isValidQuantity(p.line.quantity, p.product.pack_size ?? 1));
   const missing = lines.filter((l) => !catalog.has(l.productId));
 
   const subtotal = round2(priced.reduce((s, p) => s + p.totals.taxable, 0));
@@ -46,8 +48,8 @@ export function CartView({ products }: { products: Product[] }) {
         return;
       }
       clear();
-      // Land on the order with the payment sheet primed.
-      router.push(`/orders/${result.orderId}?pay=1`);
+      // Land on the order, where it's confirmed — no payment up front.
+      router.push(`/orders/${result.orderId}`);
     });
   };
 
@@ -118,16 +120,27 @@ export function CartView({ products }: { products: Product[] }) {
                     <input
                       id={`cart-qty-${line.productId}`}
                       type="number"
-                      min={1}
-                      step={1}
+                      min={product.pack_size ?? 1}
+                      step={product.pack_size ?? 1}
                       value={line.quantity}
                       onChange={(e) =>
                         setLine(line.productId, {
-                          quantity: Math.max(1, Number(e.target.value) || 1),
+                          quantity: Math.max(0, Math.floor(Number(e.target.value)) || 0),
                         })
                       }
                       className={inputClass}
                     />
+                    {(product.pack_size ?? 1) > 1 ? (
+                      <p
+                        className={
+                          isValidQuantity(line.quantity, product.pack_size ?? 1)
+                            ? "text-xs text-muted"
+                            : "text-xs font-medium text-danger"
+                        }
+                      >
+                        Multiples of {product.pack_size} only
+                      </p>
+                    ) : null}
                   </div>
                   <div className="space-y-1">
                     <label
@@ -136,9 +149,9 @@ export function CartView({ products }: { products: Product[] }) {
                     >
                       Spec notes
                     </label>
-                    <input
+                    <textarea
                       id={`cart-notes-${line.productId}`}
-                      type="text"
+                      rows={line.notes.includes("\n") ? 5 : 1}
                       value={line.notes}
                       placeholder="Colours, sizes, finish…"
                       onChange={(e) => setLine(line.productId, { notes: e.target.value })}
@@ -180,15 +193,15 @@ export function CartView({ products }: { products: Product[] }) {
         <button
           type="button"
           onClick={submit}
-          disabled={pending}
+          disabled={pending || badQty}
           className={btn("primary", "mt-5 w-full")}
         >
           {pending ? "Placing order…" : "Place order"}
         </button>
 
         <p className="mt-3 text-xs leading-relaxed text-muted">
-          You&apos;ll pay and upload artwork on the next screen. Nothing goes to production
-          until payment clears.
+          You&apos;ll confirm the order on the next screen — no upfront payment. Artwork upload is
+          optional.
         </p>
 
         <button

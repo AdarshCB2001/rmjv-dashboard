@@ -2,13 +2,14 @@ import { getSession } from "@/lib/auth";
 import { getOrder } from "@/lib/data/orders";
 import { ensureInvoice } from "@/lib/data/invoices";
 import { renderInvoicePdf } from "@/lib/invoice-pdf";
+import { fetchInvoicePdf, HAS_SWIPE } from "@/lib/swipe";
 
 /**
- * Streams the GST invoice for a paid order.
+ * Streams the GST invoice for a shipped or delivered order (payment can follow).
  *
  * Rendered on demand rather than stored: the numbers come from the order's own line
  * items, so there's no stale-PDF problem, and the invoice number is allocated once and
- * reused. Only paid orders get one — an unpaid order has no taxable event yet.
+ * reused. Issued when the order ships; payment is tracked separately.
  */
 export async function GET(
   _request: Request,
@@ -22,11 +23,32 @@ export async function GET(
   const order = await getOrder(orderId, session.isAdmin ? null : session.email);
   if (!order) return Response.json({ error: "Order not found." }, { status: 404 });
 
-  if (order.payment_status !== "paid") {
+  if (order.status !== "shipped" && order.status !== "delivered") {
     return Response.json(
-      { error: "An invoice is issued once the order is paid." },
+      { error: "An invoice is issued once the order is shipped." },
       { status: 409 },
     );
+  }
+
+  if (HAS_SWIPE) {
+    // The invoice lives on SWIPE; it is created when the order reaches Completed.
+    if (!order.swipe_hash_id) {
+      return Response.json({ error: "Your invoice is being prepared. Try again shortly." }, { status: 409 });
+    }
+    try {
+      const pdf = await fetchInvoicePdf(order.swipe_hash_id);
+      const name = (order.swipe_invoice_number ?? order.order_number).replace(/[^\w.-]+/g, "-");
+      return new Response(pdf, {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `attachment; filename="${name}.pdf"`,
+          "Cache-Control": "private, no-store",
+        },
+      });
+    } catch (error) {
+      console.error("[invoices] SWIPE pdf failed", error);
+      return Response.json({ error: "Could not fetch the invoice." }, { status: 502 });
+    }
   }
 
   try {

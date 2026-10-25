@@ -2,9 +2,9 @@
 
 import { useActionState } from "react";
 import { DEMO_MODE } from "@/lib/config";
-import { ORDER_STATUSES, type Order } from "@/lib/types";
+import { ORDER_STATUSES, PAYMENT_STATUSES, type Order } from "@/lib/types";
 import { formatINR } from "@/lib/money";
-import { statusLabel, PaymentBadge } from "@/components/status";
+import { statusLabel, PAYMENT_LABEL, PaymentBadge } from "@/components/status";
 import { Badge, Card, formatDate, inputClass } from "@/components/ui";
 import { FormMessage, SubmitButton } from "@/components/FormBits";
 import { updateOrder, type ActionState } from "../actions";
@@ -18,7 +18,14 @@ const STATUS_OPTIONS = [...ORDER_STATUSES, "cancelled" as const];
  * Delhivery), a scheduled job can write the same fields and this form stays the
  * override.
  */
-export function OrderAdminForm({ order }: { order: Order }) {
+export function OrderAdminForm({
+  order,
+  defaultFiles,
+}: {
+  order: Order;
+  /** Order item id -> the product's standard PDF, used when no artwork was uploaded. */
+  defaultFiles: Record<string, string | null>;
+}) {
   const [state, action] = useActionState<ActionState, FormData>(updateOrder, {});
 
   return (
@@ -55,7 +62,14 @@ export function OrderAdminForm({ order }: { order: Order }) {
                   </a>
                 )
               ) : (
-                <span className="text-xs text-warning">no artwork yet</span>
+                <a
+                  href={defaultFiles[item.id] ?? undefined}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-medium text-accent hover:underline"
+                >
+                  default PDF
+                </a>
               )}
             </span>
           </li>
@@ -64,8 +78,18 @@ export function OrderAdminForm({ order }: { order: Order }) {
 
       <form action={action} className="mt-4 space-y-3 border-t border-line pt-4">
         <input type="hidden" name="order_id" value={order.id} />
+        {order.pm_task_id ? (
+          <>
+            {/* Disabled selects aren't submitted; keep the values the server validates. */}
+            <input type="hidden" name="status" value={order.status} />
+            <input type="hidden" name="payment_status" value={order.payment_status} />
+            <p className="text-xs text-muted">
+              Status and payment follow the project management app (task {order.pm_task_id}).
+            </p>
+          </>
+        ) : null}
 
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-4">
           <div className="space-y-1">
             <label htmlFor={`status-${order.id}`} className="block text-xs font-medium text-ink">
               Status
@@ -74,11 +98,30 @@ export function OrderAdminForm({ order }: { order: Order }) {
               id={`status-${order.id}`}
               name="status"
               defaultValue={order.status}
+              disabled={Boolean(order.pm_task_id)}
               className={inputClass}
             >
               {STATUS_OPTIONS.map((s) => (
                 <option key={s} value={s}>
                   {statusLabel(s)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label htmlFor={`payment-${order.id}`} className="block text-xs font-medium text-ink">
+              Payment
+            </label>
+            <select
+              id={`payment-${order.id}`}
+              name="payment_status"
+              defaultValue={order.payment_status}
+              disabled={Boolean(order.pm_task_id)}
+              className={inputClass}
+            >
+              {PAYMENT_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {PAYMENT_LABEL[s]}
                 </option>
               ))}
             </select>

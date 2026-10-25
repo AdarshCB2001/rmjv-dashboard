@@ -2,7 +2,7 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { ALLOWED_EMAIL_DOMAIN, DEMO_MODE, SITE_URL } from "@/lib/config";
+import { ALLOWED_EMAIL_DOMAIN, DEMO_LOCKED, DEMO_MODE, SITE_URL } from "@/lib/config";
 import { gateEmail, type GateResult } from "@/lib/auth";
 import { DEMO_COOKIE, signSession } from "@/lib/demo/session";
 import { serverSupabase } from "@/lib/supabase/server";
@@ -59,7 +59,7 @@ export async function sendMagicLink(
  * to the same `gateEmail` check as the real flow.
  */
 export async function demoSignIn(_prev: LoginState, formData: FormData): Promise<LoginState> {
-  if (!DEMO_MODE) return { error: "Demo sign-in is disabled when Supabase is configured." };
+  if (!DEMO_MODE || DEMO_LOCKED) return { error: "Demo sign-in is disabled." };
 
   const email = String(formData.get("email") ?? "")
     .trim()
@@ -78,7 +78,7 @@ export async function demoSignIn(_prev: LoginState, formData: FormData): Promise
     {
       httpOnly: true,
       sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
+      secure: SITE_URL.startsWith("https://"),
       path: "/",
       maxAge: 60 * 60 * 8,
     },

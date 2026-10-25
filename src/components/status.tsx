@@ -25,7 +25,7 @@ export function StatusBadge({ status }: { status: OrderStatus }) {
   return <Badge tone={STATUS_TONE[status] ?? "neutral"}>{statusLabel(status)}</Badge>;
 }
 
-const PAYMENT_LABEL: Record<PaymentStatus, string> = {
+export const PAYMENT_LABEL: Record<PaymentStatus, string> = {
   unpaid: "Payment due",
   paid: "Paid",
   failed: "Payment failed",
@@ -47,7 +47,13 @@ export function PaymentBadge({ status }: { status: PaymentStatus }) {
  * Horizontal progress stepper for the order detail page. A cancelled order leaves the
  * happy path, so it gets its own line rather than a misleading half-filled track.
  */
-export function StatusStepper({ status }: { status: OrderStatus }) {
+export function StatusStepper({
+  status,
+  paymentStatus,
+}: {
+  status: OrderStatus;
+  paymentStatus: PaymentStatus;
+}) {
   if (status === "cancelled") {
     return (
       <div className="flex items-center gap-2">
@@ -61,12 +67,17 @@ export function StatusStepper({ status }: { status: OrderStatus }) {
 
   const currentIndex = ORDER_STATUSES.indexOf(status as (typeof ORDER_STATUSES)[number]);
 
+  // Payment is the last step, after Delivered; it can be settled at any point.
+  const steps = [...ORDER_STATUSES, "payment"] as const;
+  const paid = paymentStatus === "paid";
+
   return (
     <ol className="flex flex-wrap items-start gap-y-4" aria-label="Order progress">
-      {ORDER_STATUSES.map((step, i) => {
-        const done = i < currentIndex;
-        const active = i === currentIndex;
-        const isLast = i === ORDER_STATUSES.length - 1;
+      {steps.map((step, i) => {
+        const isPayment = step === "payment";
+        const done = isPayment ? paid : i < currentIndex;
+        const active = isPayment ? !paid && status === "delivered" : i === currentIndex;
+        const isLast = i === steps.length - 1;
 
         return (
           <li key={step} className="flex flex-1 items-start gap-2 min-w-[7.5rem]">
@@ -90,7 +101,7 @@ export function StatusStepper({ status }: { status: OrderStatus }) {
                   active ? "text-ink" : done ? "text-body" : "text-faint",
                 )}
               >
-                {statusLabel(step)}
+                {isPayment ? PAYMENT_LABEL[paymentStatus] : statusLabel(step)}
                 {active ? <span className="sr-only"> (current step)</span> : null}
               </span>
               {!isLast ? (

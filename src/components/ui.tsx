@@ -168,7 +168,16 @@ export function EmptyState({
  * Catalog images are optional. When a product has none, fall back to initials on a
  * deterministic tint so the grid stays visually even instead of showing gaps.
  */
-export function ProductThumb({ name, imageUrl }: { name: string; imageUrl: string | null }) {
+export function ProductThumb({
+  name,
+  imageUrl,
+  contain = false,
+}: {
+  name: string;
+  imageUrl: string | null;
+  /** Show the whole image on white (drawings) instead of cropping to fill (photos). */
+  contain?: boolean;
+}) {
   if (imageUrl) {
     return (
       // Not next/image: these URLs are admin-entered and can point at any host, and
@@ -177,7 +186,7 @@ export function ProductThumb({ name, imageUrl }: { name: string; imageUrl: strin
       <img
         src={imageUrl}
         alt=""
-        className="h-full w-full object-cover"
+        className={contain ? "h-full w-full bg-white object-contain p-2" : "h-full w-full object-cover"}
         loading="lazy"
         decoding="async"
       />

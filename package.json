@@ -6,24 +6,28 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "thumbs": "node scripts/pdf-thumbs.mjs",
+    "catalog:push": "node --env-file=.env.local scripts/catalog-push.mjs"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.5.1",
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.111.0",
+    "firebase-admin": "^14.5.0",
     "next": "16.2.12",
-    "razorpay": "^2.9.8",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
   "devDependencies": {
+    "@napi-rs/canvas": "^1.0.13",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.12",
+    "pdfjs-dist": "^6.4.299",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

@@ -7,6 +7,44 @@ import { btn, Notice } from "./ui";
 
 const ACCEPT = ALLOWED_FILE_EXTENSIONS.join(",");
 
+/** Sign → PUT → commit for one order line. Resolves to a status message, throws on failure. */
+export async function uploadArtwork(orderItemId: string, file: File): Promise<string> {
+  const signRes = await fetch("/api/uploads/sign", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ orderItemId, fileName: file.name, fileSize: file.size }),
+  });
+  const sign = await signRes.json();
+  if (!signRes.ok) throw new Error(sign?.error ?? "Could not start the upload.");
+
+  if (sign.signedUrl) {
+    const put = await fetch(sign.signedUrl, {
+      method: "PUT",
+      headers: { "Content-Type": file.type || "application/octet-stream" },
+      body: file,
+    });
+    if (!put.ok) throw new Error("The upload didn't complete. Try again.");
+  }
+
+  const commitRes = await fetch("/api/uploads/commit", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      orderItemId,
+      path: sign.path,
+      version: sign.version,
+      fileName: file.name,
+      fileSize: file.size,
+    }),
+  });
+  const commit = await commitRes.json();
+  if (!commitRes.ok) throw new Error(commit?.error ?? "Could not save the upload.");
+
+  return sign.signedUrl
+    ? `Uploaded as v${sign.version}.`
+    : `Recorded as v${sign.version}. (Demo mode stores the filename, not the file.)`;
+}
+
 /**
  * Uploads artwork for one order line.
  *
@@ -43,42 +81,7 @@ export function FileUpload({
 
     setBusy(true);
     try {
-      const signRes = await fetch("/api/uploads/sign", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderItemId, fileName: file.name, fileSize: file.size }),
-      });
-      const sign = await signRes.json();
-      if (!signRes.ok) throw new Error(sign?.error ?? "Could not start the upload.");
-
-      if (sign.signedUrl) {
-        const put = await fetch(sign.signedUrl, {
-          method: "PUT",
-          headers: { "Content-Type": file.type || "application/octet-stream" },
-          body: file,
-        });
-        if (!put.ok) throw new Error("The upload didn't complete. Try again.");
-      }
-
-      const commitRes = await fetch("/api/uploads/commit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          orderItemId,
-          path: sign.path,
-          version: sign.version,
-          fileName: file.name,
-          fileSize: file.size,
-        }),
-      });
-      const commit = await commitRes.json();
-      if (!commitRes.ok) throw new Error(commit?.error ?? "Could not save the upload.");
-
-      setDone(
-        sign.signedUrl
-          ? `Uploaded as v${sign.version}.`
-          : `Recorded as v${sign.version}. (Demo mode stores the filename, not the file.)`,
-      );
+      setDone(await uploadArtwork(orderItemId, file));
       if (inputRef.current) inputRef.current.value = "";
       router.refresh();
     } catch (e) {

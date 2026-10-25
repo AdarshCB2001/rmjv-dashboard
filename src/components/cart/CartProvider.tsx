@@ -35,7 +35,7 @@ function parse(raw: string | null): CartLine[] {
     return parsed
       .filter(
         (l): l is CartLine =>
-          typeof l?.productId === "string" && Number.isFinite(l?.quantity) && l.quantity > 0,
+          typeof l?.productId === "string" && Number.isFinite(l?.quantity) && l.quantity >= 0,
       )
       .map((l) => ({
         productId: l.productId,

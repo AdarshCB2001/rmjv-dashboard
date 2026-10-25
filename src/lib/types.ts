@@ -31,6 +31,8 @@ export type Product = {
   image_url: string | null;
   active: boolean;
   created_at: string;
+  /** Computed from the catalog, not stored: minimum order quantity and its step. */
+  pack_size?: number;
 };
 
 export type OrderItem = {
@@ -73,6 +75,11 @@ export type Order = {
   razorpay_order_id: string | null;
   tracking_number: string | null;
   courier: string | null;
+  /** Id of the linked task in the project management app, once confirmed. */
+  pm_task_id?: string | null;
+  /** The GST invoice issued on SWIPE, once the order is Completed. */
+  swipe_hash_id?: string | null;
+  swipe_invoice_number?: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;

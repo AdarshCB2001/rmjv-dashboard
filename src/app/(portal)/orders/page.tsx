@@ -51,11 +51,11 @@ export default async function OrdersPage() {
               </thead>
               <tbody className="divide-y divide-line">
                 {orders.map((order) => (
-                  <tr key={order.id} className="transition-colors hover:bg-surface-2">
+                  <tr key={order.id} className="relative cursor-pointer transition-colors hover:bg-surface-2">
                     <td className="px-4 py-3">
                       <Link
                         href={`/orders/${order.id}`}
-                        className="font-medium text-accent hover:underline"
+                        className="font-medium text-accent after:absolute after:inset-0 hover:underline"
                       >
                         {order.order_number}
                       </Link>

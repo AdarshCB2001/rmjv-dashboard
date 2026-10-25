@@ -16,7 +16,7 @@ import { DEMO_COOKIE, readSession } from "@/lib/demo/session";
  * allow-list is re-checked on each session read, and RLS is what actually guards rows.
  */
 
-const PUBLIC_PATHS = ["/login", "/auth", "/api/razorpay-webhook"];
+const PUBLIC_PATHS = ["/login", "/auth", "/api/cron"];
 
 const isPublic = (pathname: string) =>
   PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));

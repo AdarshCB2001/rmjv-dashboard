@@ -1,7 +1,7 @@
 import { DEMO_MODE } from "@/lib/config";
 import { requireSession } from "@/lib/auth";
 import { AppNav } from "@/components/AppNav";
-import { ChatWidget } from "@/components/ChatWidget";
+import { MadeBy } from "@/components/MadeBy";
 import { CartProvider } from "@/components/cart/CartProvider";
 import { signOut } from "../login/actions";
 
@@ -24,11 +24,10 @@ export default async function PortalLayout({ children }: { children: React.React
       />
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">{children}</main>
       <footer className="border-t border-line py-6">
-        <div className="mx-auto max-w-6xl px-4 text-xs text-faint sm:px-6">
-          FunKustoms · Questions about an order? Use the chat bubble and we&apos;ll pick it up.
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <MadeBy />
         </div>
       </footer>
-      <ChatWidget email={session.email} fullName={session.fullName} />
     </CartProvider>
   );
 }
