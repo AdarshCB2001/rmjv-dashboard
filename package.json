@@ -10,7 +10,8 @@
     "thumbs": "node scripts/pdf-thumbs.mjs",
     "catalog:push": "node --env-file=.env.local scripts/catalog-push.mjs",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
-    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy"
+    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "invoices:import": "node --env-file=.env.local scripts/import-invoices.mjs"
   },
   "dependencies": {
     "@opennextjs/cloudflare": "^1.20.13",

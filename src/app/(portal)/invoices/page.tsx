@@ -86,13 +86,17 @@ export default async function InvoicesPage({
                     )}
                   >
                     <div className="flex items-center gap-2">
-                      <Badge tone={x.pending > 0 ? "warning" : "positive"}>{x.pending > 0 ? "Pending" : "Paid"}</Badge>
+                      {x.kind === "estimate" ? (
+                        <Badge tone="info">Estimate</Badge>
+                      ) : (
+                        <Badge tone={x.pending > 0 ? "warning" : "positive"}>{x.pending > 0 ? "Pending" : "Paid"}</Badge>
+                      )}
                       <span className="font-medium text-ink nums">{x.number}</span>
                       <span className="ml-auto text-xs text-muted nums">{formatDate(x.date)}</span>
                     </div>
                     <p className="mt-1 flex justify-between gap-2 text-sm text-muted">
                       <span className="truncate">
-                        {x.pending > 0 ? sinceText(x.date) : x.reference || "—"}
+                        {x.pending > 0 ? sinceText(x.date) : [x.customer, x.reference].filter(Boolean).join(" · ") || "—"}
                       </span>
                       <span className="nums">{inr(x.total)}</span>
                     </p>

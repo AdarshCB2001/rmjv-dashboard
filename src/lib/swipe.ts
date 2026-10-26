@@ -176,6 +176,10 @@ export type SwipeDoc = {
   reference: string;
   total: number;
   pending: number;
+  /** Estimates only come from the PDF import; SWIPE sync lists invoices. */
+  kind?: "invoice" | "estimate";
+  /** Who it was billed to, when known (imported PDFs). */
+  customer?: string | null;
 };
 
 type SwipeListRow = {
@@ -189,6 +193,7 @@ type SwipeListRow = {
 
 const toRow = (d: SwipeDoc) => ({
   hash_id: d.hashId, number: d.number, doc_date: d.date, reference: d.reference, total: d.total, pending: d.pending,
+  kind: d.kind ?? "invoice", customer: d.customer ?? null,
   synced_at: new Date().toISOString(),
 });
 
@@ -212,6 +217,7 @@ export async function listCustomerDocs(): Promise<SwipeDoc[]> {
     .map((r) => ({
       hashId: r.hash_id as string, number: r.number as string, date: r.doc_date as string,
       reference: (r.reference as string | null) ?? "", total: Number(r.total), pending: Number(r.pending),
+      kind: r.kind as "invoice" | "estimate", customer: r.customer as string | null,
     }))
     .sort(byNewest);
 }
@@ -238,6 +244,11 @@ export async function refreshCustomerDocs(): Promise<number> {
       });
     }
     if (rows.length === 0 || docs.length >= (data?.total_records ?? 0)) break;
+  }
+  // A PDF imported earlier is superseded once SWIPE lists the same invoice number.
+  const supabase = adminSupabase();
+  if (supabase && docs.length > 0) {
+    await supabase.from("swipe_docs").delete().like("hash_id", "import-%").in("number", docs.map((d) => d.number));
   }
   await remember(docs);
   return docs.length;
