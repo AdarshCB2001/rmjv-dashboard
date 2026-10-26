@@ -1,10 +1,10 @@
 import { getSession } from "@/lib/auth";
 import { getInvoicePdf, listCustomerDocs } from "@/lib/swipe";
 
-/** Admin-only PDF of an RMJV invoice/estimate on SWIPE. `?dl=1` downloads instead of previewing. */
+/** PDF of an RMJV invoice/estimate for any signed-in portal user (the portal serves a single customer). `?dl=1` downloads instead of previewing. */
 export async function GET(request: Request, { params }: { params: Promise<{ hash: string }> }) {
   const session = await getSession();
-  if (!session?.isAdmin) return Response.json({ error: "Not allowed." }, { status: 403 });
+  if (!session) return Response.json({ error: "Not signed in." }, { status: 401 });
 
   const { hash } = await params;
   try {

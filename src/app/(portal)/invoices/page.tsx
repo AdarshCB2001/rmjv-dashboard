@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { requireAdmin } from "@/lib/auth";
+import { requireSession } from "@/lib/auth";
 import { HAS_SWIPE, listCustomerDocs, type SwipeDoc } from "@/lib/swipe";
 import { Badge, btn, Card, cx, EmptyState, formatDate, Notice, PageHeader } from "@/components/ui";
 import { refreshInvoices } from "./actions";
@@ -23,7 +23,7 @@ export default async function InvoicesPage({
 }: {
   searchParams: Promise<{ f?: string; refreshed?: string }>;
 }) {
-  const [{ f, refreshed }] = await Promise.all([searchParams, requireAdmin()]);
+  const [{ f, refreshed }, session] = await Promise.all([searchParams, requireSession()]);
 
   let all: SwipeDoc[] = [];
   let failed = false;
@@ -42,14 +42,14 @@ export default async function InvoicesPage({
       <PageHeader
         title="Invoices"
         actions={
-          HAS_SWIPE ? (
+          HAS_SWIPE && session.isAdmin ? (
             <form action={refreshInvoices}>
               <button type="submit" className={btn("secondary")}>Refresh from SWIPE</button>
             </form>
           ) : undefined
         }
       />
-      {refreshed ? (
+      {refreshed && session.isAdmin ? (
         <div className="mb-4">
           <Notice tone={refreshed === "failed" ? "warning" : "info"}>
             {refreshed === "failed"
@@ -67,7 +67,7 @@ export default async function InvoicesPage({
               ? "Set SWIPE_API_KEY to list invoices from SWIPE."
               : failed
                 ? "Reload in a moment."
-                : "New invoices appear here automatically. Use “Refresh from SWIPE” to pull in older ones."
+                : "New invoices appear here automatically."
           }
         />
       ) : (

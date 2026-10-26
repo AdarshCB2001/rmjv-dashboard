@@ -27,9 +27,7 @@ export function AppNav({ email, fullName, isAdmin, signOut }: Props) {
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
-  const navLinks = isAdmin
-    ? [...LINKS, { href: "/invoices", label: "Invoices" }, { href: "/admin", label: "Admin" }]
-    : LINKS;
+  const navLinks = [...LINKS, { href: "/invoices", label: "Invoices" }, ...(isAdmin ? [{ href: "/admin", label: "Admin" }] : [])];
 
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-surface/85 backdrop-blur">
