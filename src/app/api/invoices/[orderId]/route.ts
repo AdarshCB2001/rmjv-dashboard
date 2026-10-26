@@ -2,7 +2,7 @@ import { getSession } from "@/lib/auth";
 import { getOrder } from "@/lib/data/orders";
 import { ensureInvoice } from "@/lib/data/invoices";
 import { renderInvoicePdf } from "@/lib/invoice-pdf";
-import { fetchInvoicePdf, HAS_SWIPE } from "@/lib/swipe";
+import { getInvoicePdf, HAS_SWIPE } from "@/lib/swipe";
 
 /**
  * Streams the GST invoice for a shipped or delivered order (payment can follow).
@@ -36,7 +36,7 @@ export async function GET(
       return Response.json({ error: "Your invoice is being prepared. Try again shortly." }, { status: 409 });
     }
     try {
-      const pdf = await fetchInvoicePdf(order.swipe_hash_id);
+      const pdf = await getInvoicePdf(order.swipe_hash_id);
       const name = (order.swipe_invoice_number ?? order.order_number).replace(/[^\w.-]+/g, "-");
       return new Response(pdf, {
         headers: {

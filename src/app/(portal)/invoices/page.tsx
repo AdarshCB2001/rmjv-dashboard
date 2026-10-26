@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { HAS_SWIPE, listCustomerDocs, type SwipeDoc } from "@/lib/swipe";
-import { Badge, btn, Card, cx, EmptyState, formatDate, PageHeader } from "@/components/ui";
+import { Badge, btn, Card, cx, EmptyState, formatDate, Notice, PageHeader } from "@/components/ui";
+import { refreshInvoices } from "./actions";
 
 export const metadata: Metadata = { title: "Invoices" };
 
@@ -20,16 +21,16 @@ const inr = (n: number) => `₹${n.toLocaleString("en-IN", { maximumFractionDigi
 export default async function InvoicesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ f?: string }>;
+  searchParams: Promise<{ f?: string; refreshed?: string }>;
 }) {
-  const [{ f }] = await Promise.all([searchParams, requireAdmin()]);
+  const [{ f, refreshed }] = await Promise.all([searchParams, requireAdmin()]);
 
   let all: SwipeDoc[] = [];
   let failed = false;
   try {
     all = await listCustomerDocs();
   } catch (error) {
-    console.error("[invoices] could not load from SWIPE", error);
+    console.error("[invoices] could not load invoices", error);
     failed = true;
   }
   const rows = all;
@@ -38,17 +39,35 @@ export default async function InvoicesPage({
 
   return (
     <>
-      <PageHeader title="Invoices" />
+      <PageHeader
+        title="Invoices"
+        actions={
+          HAS_SWIPE ? (
+            <form action={refreshInvoices}>
+              <button type="submit" className={btn("secondary")}>Refresh from SWIPE</button>
+            </form>
+          ) : undefined
+        }
+      />
+      {refreshed ? (
+        <div className="mb-4">
+          <Notice tone={refreshed === "failed" ? "warning" : "info"}>
+            {refreshed === "failed"
+              ? "Could not reach SWIPE (the monthly API limit may be used up). Showing the saved list."
+              : `Synced ${refreshed.replace("ok-", "")} invoices from SWIPE.`}
+          </Notice>
+        </div>
+      ) : null}
 
       {rows.length === 0 ? (
         <EmptyState
-          title={!HAS_SWIPE ? "SWIPE is not connected" : failed ? "Could not reach SWIPE" : "No invoices here yet"}
+          title={!HAS_SWIPE ? "SWIPE is not connected" : failed ? "Could not load invoices" : "No invoices here yet"}
           description={
             !HAS_SWIPE
               ? "Set SWIPE_API_KEY to list invoices from SWIPE."
               : failed
                 ? "Reload in a moment."
-                : "Invoices for this customer appear here as they are created on SWIPE."
+                : "New invoices appear here automatically. Use “Refresh from SWIPE” to pull in older ones."
           }
         />
       ) : (

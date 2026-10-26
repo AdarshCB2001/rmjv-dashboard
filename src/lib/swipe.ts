@@ -1,5 +1,7 @@
 import "server-only";
+import { INVOICES_BUCKET } from "@/lib/config";
 import { lineTotals, round2 } from "@/lib/money";
+import { adminSupabase } from "@/lib/supabase/server";
 import type { Order } from "@/lib/types";
 
 /**
@@ -8,7 +10,10 @@ import type { Order } from "@/lib/types";
  * Completed — `issueInvoices` creates the invoice on SWIPE and saves its id on the order;
  * the portal's "Download GST invoice" then streams SWIPE's own PDF.
  *
- * API: https://developers.getswipe.in (Bearer key, 1 request/second). Calls act on the live
+ * API: https://developers.getswipe.in (Bearer key, 1 request/second, 100 calls a month). So the
+ * portal never reads SWIPE per page view: invoice details live in the `swipe_docs` table and
+ * PDFs in the `invoices` bucket, filled when an invoice is created, on first open of a PDF, or
+ * by the admin's "Refresh from SWIPE". Calls act on the live
  * SWIPE account, so an invoice is only ever created once per order (the hash id is stored).
  */
 
@@ -29,6 +34,8 @@ const ddmmyyyy = (d = new Date()) =>
   new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", day: "2-digit", month: "2-digit", year: "numeric" })
     .format(d)
     .replace(/\//g, "-");
+
+const isoToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -84,7 +91,7 @@ function swipeItem(productName: string): { id: string; name: string; hsn?: strin
 }
 
 /** Creates the invoice for an order. Throws if a line has no price yet. */
-async function createInvoice(order: Order): Promise<{ hashId: string; serial: string }> {
+async function createInvoice(order: Order): Promise<{ hashId: string; serial: string; total: number }> {
   const items = (order.items ?? []).map((i) => {
     const name = i.product?.name ?? "Item";
     if (!(i.unit_price > 0)) throw new Error(`${name} has no price yet`);
@@ -118,7 +125,7 @@ async function createInvoice(order: Order): Promise<{ hashId: string; serial: st
     }),
   });
   if (!data?.hash_id) throw new Error("SWIPE returned no document id");
-  return { hashId: data.hash_id, serial: data.serial_number };
+  return { hashId: data.hash_id, serial: data.serial_number, total: round2(items.reduce((n, i) => n + i.total_amount, 0)) };
 }
 
 /** Orders being invoiced right now, so two page views can't both create one. */
@@ -145,9 +152,12 @@ export async function issueInvoices(
     inFlight.add(order.id);
     try {
       if (n > 0) await sleep(1100); // SWIPE allows one request per second
-      const { hashId, serial } = await createInvoice(order);
+      const { hashId, serial, total } = await createInvoice(order);
       const patch = { swipe_hash_id: hashId, swipe_invoice_number: serial };
       await save(order.id, patch);
+      await remember([{ hashId, number: serial, date: isoToday(), reference: order.order_number, total, pending: total }]).catch(
+        (e) => console.error("[swipe] could not cache invoice", serial, e),
+      );
       done.set(order.id, patch);
     } catch (error) {
       console.error("[swipe] could not invoice", order.order_number, error);
@@ -177,16 +187,41 @@ type SwipeListRow = {
   hash_id: string;
 };
 
-let docsCache: { at: number; docs: SwipeDoc[] } | null = null;
+const toRow = (d: SwipeDoc) => ({
+  hash_id: d.hashId, number: d.number, doc_date: d.date, reference: d.reference, total: d.total, pending: d.pending,
+  synced_at: new Date().toISOString(),
+});
+
+async function remember(docs: SwipeDoc[]) {
+  const supabase = adminSupabase();
+  if (!supabase || docs.length === 0) return;
+  const { error } = await supabase.from("swipe_docs").upsert(docs.map(toRow));
+  if (error) throw error;
+}
+
+const byNewest = (a: SwipeDoc, b: SwipeDoc) =>
+  b.date.localeCompare(a.date) || b.number.localeCompare(a.number, undefined, { numeric: true });
+
+/** Invoices for the RMJV customer, newest first, from our own copy. Makes no SWIPE call. */
+export async function listCustomerDocs(): Promise<SwipeDoc[]> {
+  const supabase = adminSupabase();
+  if (!HAS_SWIPE || !supabase) return [];
+  const { data, error } = await supabase.from("swipe_docs").select("*");
+  if (error) throw error;
+  return (data ?? [])
+    .map((r) => ({
+      hashId: r.hash_id as string, number: r.number as string, date: r.doc_date as string,
+      reference: (r.reference as string | null) ?? "", total: Number(r.total), pending: Number(r.pending),
+    }))
+    .sort(byNewest);
+}
 
 /**
- * Every invoice on SWIPE for the RMJV customer, newest first. SWIPE returns 10 a
- * page at one request per second, so the result is kept for a minute.
+ * Pulls every invoice from SWIPE into our copy (10 per call, 1 call/second) — about
+ * ceil(n / 10) API calls, so it only runs when an admin asks. Returns how many were synced.
  */
-export async function listCustomerDocs(): Promise<SwipeDoc[]> {
-  if (!HAS_SWIPE) return [];
-  if (docsCache && Date.now() - docsCache.at < 60_000) return docsCache.docs;
-
+export async function refreshCustomerDocs(): Promise<number> {
+  if (!HAS_SWIPE) return 0;
   const docs: SwipeDoc[] = [];
   for (let page = 1; ; page++) {
     if (page > 1) await sleep(1100);
@@ -204,17 +239,31 @@ export async function listCustomerDocs(): Promise<SwipeDoc[]> {
     }
     if (rows.length === 0 || docs.length >= (data?.total_records ?? 0)) break;
   }
-  docs.sort((a, b) => b.date.localeCompare(a.date) || b.number.localeCompare(a.number, undefined, { numeric: true }));
-  docsCache = { at: Date.now(), docs };
-  return docs;
+  await remember(docs);
+  return docs.length;
 }
 
-/** SWIPE's own PDF for an invoice. */
-export async function fetchInvoicePdf(hashId: string): Promise<ArrayBuffer> {
+async function fetchPdfFromSwipe(hashId: string): Promise<ArrayBuffer> {
   const res = await fetch(`${API}/doc/pdf/${encodeURIComponent(hashId)}`, {
     headers: { Authorization: `Bearer ${KEY}` },
     cache: "no-store",
   });
   if (!res.ok) throw new Error(`SWIPE ${res.status} fetching the invoice PDF`);
   return res.arrayBuffer();
+}
+
+/** An invoice PDF: from our bucket if we have it, else fetched from SWIPE once (1 call) and kept. */
+export async function getInvoicePdf(hashId: string): Promise<ArrayBuffer> {
+  const supabase = adminSupabase();
+  const key = `${hashId.replace(/[^w-]/g, "_")}.pdf`;
+  if (supabase) {
+    const { data } = await supabase.storage.from(INVOICES_BUCKET).download(key);
+    if (data) return data.arrayBuffer();
+  }
+  const pdf = await fetchPdfFromSwipe(hashId);
+  if (supabase) {
+    const { error } = await supabase.storage.from(INVOICES_BUCKET).upload(key, pdf, { contentType: "application/pdf", upsert: true });
+    if (error) console.error("[swipe] could not store invoice PDF", key, error.message);
+  }
+  return pdf;
 }
