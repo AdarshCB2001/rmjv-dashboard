@@ -27,7 +27,8 @@ export default async function AdminStaffPage() {
         </Card>
 
         <Notice tone="info">
-          Revoking access takes effect on that person&apos;s next request — the allow-list is
+          Anyone with an @{ALLOWED_EMAIL_DOMAIN} address can sign in and is added here on their first
+          visit; untick Active to block someone. Revoking access takes effect on that person&apos;s next request — the allow-list is
           re-checked on every page load, not just at sign-in.
         </Notice>
 

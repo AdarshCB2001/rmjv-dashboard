@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { BOOTSTRAP_ADMIN_EMAILS, DEMO_LOCKED, DEMO_MODE, isAllowedEmail } from "@/lib/config";
 import { DEMO_COOKIE, readSession } from "@/lib/demo/session";
 import { clone, db } from "@/lib/demo/store";
+import { addAllowedUser } from "@/lib/data/users";
 import { adminSupabase, serverSupabase } from "@/lib/supabase/server";
 import type { AllowedUser, Session } from "@/lib/types";
 
@@ -42,14 +43,19 @@ export type GateResult =
 /**
  * The single definition of "may this email use the portal".
  *
- * Both conditions are checked: the address must be on the allowed domain *and* be an
- * active row in `allowed_users`. Called from the login action, the auth callback, and
+ * The address must be on the allowed domain (or a bootstrap admin) *and* be an active row
+ * in `allowed_users`. Anyone on the domain gets a row the first time they sign in, so staff
+ * don't need adding one by one; setting `active = false` in Admin → Staff still blocks them. Called from the login action, the auth callback, and
  * on every session read — so revoking access in the admin table takes effect on the
  * user's next request rather than when their token happens to expire.
  */
 export async function gateEmail(email: string): Promise<GateResult> {
   if (!isAllowedEmail(email)) return { ok: false, reason: "domain" };
-  const user = await findAllowedUser(email);
+  let user = await findAllowedUser(email);
+  if (!user) {
+    // First sign-in from this domain. Losing a race to a parallel request just means the row exists now.
+    user = await addAllowedUser({ email, full_name: null, is_admin: false }).catch(() => findAllowedUser(email));
+  }
   if (!user) return { ok: false, reason: "not-listed" };
   if (!user.active) return { ok: false, reason: "deactivated" };
   return { ok: true, user };
