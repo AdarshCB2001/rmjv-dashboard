@@ -260,7 +260,10 @@ async function fetchPdfFromSwipe(hashId: string): Promise<ArrayBuffer> {
     cache: "no-store",
   });
   if (!res.ok) throw new Error(`SWIPE ${res.status} fetching the invoice PDF`);
-  return res.arrayBuffer();
+  const pdf = await res.arrayBuffer();
+  // SWIPE can answer 200 with a JSON error (e.g. quota used up); never store or serve that as a PDF.
+  if (new TextDecoder().decode(pdf.slice(0, 4)) !== "%PDF") throw new Error("SWIPE did not return a PDF");
+  return pdf;
 }
 
 /** An invoice PDF: from our bucket if we have it, else fetched from SWIPE once (1 call) and kept. */
