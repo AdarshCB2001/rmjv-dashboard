@@ -269,7 +269,7 @@ async function fetchPdfFromSwipe(hashId: string): Promise<ArrayBuffer> {
 /** An invoice PDF: from our bucket if we have it, else fetched from SWIPE once (1 call) and kept. */
 export async function getInvoicePdf(hashId: string): Promise<ArrayBuffer> {
   const supabase = adminSupabase();
-  const key = `${hashId.replace(/[^w-]/g, "_")}.pdf`;
+  const key = `${hashId.replace(/[^A-Za-z0-9_-]/g, "_")}.pdf`;
   if (supabase) {
     const { data } = await supabase.storage.from(INVOICES_BUCKET).download(key);
     if (data) return data.arrayBuffer();
